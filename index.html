@@ -503,7 +503,7 @@ footer {
           <li class="off"><span class="icon">—</span>Comparaison de périodes</li>
           <li class="off"><span class="icon">—</span>Insights automatiques</li>
         </ul>
-        <button class="plan-cta" onclick="setPlan('free')">Commencer gratuitement</button>
+        <button class="plan-cta" onclick="handleFreePlan()">Commencer gratuitement</button>
       </div>
       <div class="pricing-card featured">
         <div class="pop-badge">⭐ POPULAIRE</div>
@@ -777,10 +777,29 @@ const STRIPE_PRICES={
 };
 const stripeClient=Stripe(STRIPE_KEY);
 
+function handleFreePlan(){
+  const planOrder={free:0,starter:1,ultra:2};
+  if(planOrder[currentPlan] > 0){
+    toast('⛔ Vous avez déjà un plan payant actif.','error');
+    return;
+  }
+  if(currentPlan==='free'){
+    toast("Vous utilisez déjà l'essai gratuit.",'info');
+    return;
+  }
+  setPlan('free');
+}
+
 async function subscribeToPlan(plan){
   if(!currentUser){
     toast('Veuillez vous connecter avant de vous abonner.','info');
     showAuthModal();
+    return;
+  }
+
+  // Bloquer si déjà sur ce plan
+  if(plan===currentPlan){
+    toast(`Vous êtes déjà sur le plan ${plan==='starter'?'Starter':'Ultra'}.`,'info');
     return;
   }
 
@@ -807,6 +826,15 @@ async function subscribeToPlan(plan){
   toast('Redirection vers le paiement...','info');
 
   try {
+    // Sauvegarder la session avant de quitter le site
+    const {data:{session}}=await sb.auth.getSession();
+    if(session){
+      localStorage.setItem('graphpro-session-backup', JSON.stringify({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token
+      }));
+    }
+
     const res=await fetch(`${SUPA_URL}/functions/v1/create-checkout`,{
       method:'POST',
       headers:{
@@ -1565,6 +1593,16 @@ function showMsg(el,txt,color){
 
 buildInputRows(); renderProducts(); initStarPicker(); loadReviews();
 window.addEventListener('load', async()=>{
+  // Restaurer la session si on revient de Stripe
+  const sessionBackup=localStorage.getItem('graphpro-session-backup');
+  if(sessionBackup){
+    try{
+      const {access_token,refresh_token}=JSON.parse(sessionBackup);
+      await sb.auth.setSession({access_token,refresh_token});
+      localStorage.removeItem('graphpro-session-backup');
+    } catch(e){ localStorage.removeItem('graphpro-session-backup'); }
+  }
+
   await initAuth();
   // Handle Stripe success redirect
   const params=new URLSearchParams(window.location.search);
