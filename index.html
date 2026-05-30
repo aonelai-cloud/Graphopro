@@ -7,9 +7,31 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://js.stripe.com/v3/"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 #reviewName::placeholder, #reviewText::placeholder { color: rgba(255,255,255,0.45); }
+
+/* Toast notifications */
+#toast-container {
+  position: fixed; bottom: 2rem; right: 2rem;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 9999; pointer-events: none;
+}
+.toast {
+  background: white; border-radius: 10px;
+  padding: 14px 20px; font-size: 14px; font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  border-left: 4px solid var(--blue);
+  display: flex; align-items: center; gap: 10px;
+  animation: toastIn 0.3s ease; max-width: 320px;
+  pointer-events: all;
+}
+.toast.success { border-color: #10b981; }
+.toast.error { border-color: #ef4444; }
+.toast.info { border-color: var(--blue); }
+@keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:none} }
+@keyframes toastOut { from{opacity:1;transform:none} to{opacity:0;transform:translateX(20px)} }
 :root {
   --blue: #635BFF;
   --blue-dark: #4F46E5;
@@ -384,8 +406,10 @@ footer {
 </nav>
 
 <!-- AUTH MODAL -->
+<div id="toast-container"></div>
 <div id="authModal" style="position:fixed;inset:0;z-index:1000;background:rgba(13,17,23,0.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:1rem;">
-  <div style="background:white;border-radius:16px;padding:2.5rem;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.18);animation:fadeUp 0.4s ease both;">
+  <div style="background:white;border-radius:16px;padding:2.5rem;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.18);animation:fadeUp 0.4s ease both;position:relative;">
+    <button onclick="document.getElementById('authModal').style.display='none'" style="position:absolute;top:1rem;right:1rem;background:transparent;border:none;font-size:1.3rem;color:var(--text3);cursor:pointer;line-height:1;transition:color 0.15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">✕</button>
     <div style="text-align:center;margin-bottom:2rem;">
       <div class="nav-logo" style="font-size:1.6rem;margin-bottom:0.5rem;">Graph<span style="color:var(--blue);">Pro</span></div>
       <div id="authTitle" style="font-size:1.2rem;font-weight:700;margin-bottom:0.25rem;">Bienvenue</div>
@@ -494,7 +518,7 @@ footer {
           <li class="off"><span class="icon">—</span>Comparaison de périodes</li>
           <li class="off"><span class="icon">—</span>Insights automatiques</li>
         </ul>
-        <button class="plan-cta" onclick="setPlan('starter')">Choisir Starter</button>
+        <button class="plan-cta" onclick="subscribeToPlan('starter')">Choisir Starter</button>
       </div>
       <div class="pricing-card">
         <div class="plan-tier">Ultra</div>
@@ -508,7 +532,7 @@ footer {
           <li><span class="icon">✓</span>Insights automatiques</li>
           <li><span class="icon">✓</span>Export des graphiques</li>
         </ul>
-        <button class="plan-cta" onclick="setPlan('ultra')">Choisir Ultra</button>
+        <button class="plan-cta" onclick="subscribeToPlan('ultra')">Choisir Ultra</button>
       </div>
     </div>
   </div>
@@ -517,12 +541,12 @@ footer {
 <!-- APP -->
 <section id="app" style="
   padding: 5rem;
-  background: linear-gradient(160deg, #ede9fe 0%, #e0e7ff 40%, #dbeafe 100%);
+  background: linear-gradient(160deg, #dbeafe 0%, #eff6ff 35%, #e0f2fe 70%, #f0f9ff 100%);
   position: relative; overflow: hidden;
 ">
-  <div style="position:absolute;top:-100px;right:-80px;width:500px;height:500px;background:radial-gradient(ellipse,rgba(99,91,255,0.18) 0%,transparent 65%);pointer-events:none;"></div>
-  <div style="position:absolute;bottom:-80px;left:-60px;width:400px;height:400px;background:radial-gradient(ellipse,rgba(96,165,250,0.15) 0%,transparent 65%);pointer-events:none;"></div>
-  <div style="position:absolute;top:40%;left:30%;width:600px;height:300px;background:radial-gradient(ellipse,rgba(167,139,250,0.1) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;top:-100px;right:-80px;width:500px;height:500px;background:radial-gradient(ellipse,rgba(59,130,246,0.15) 0%,transparent 65%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-80px;left:-60px;width:400px;height:400px;background:radial-gradient(ellipse,rgba(14,165,233,0.12) 0%,transparent 65%);pointer-events:none;"></div>
+  <div style="position:absolute;top:40%;left:30%;width:600px;height:300px;background:radial-gradient(ellipse,rgba(99,91,255,0.08) 0%,transparent 70%);pointer-events:none;"></div>
 
   <div style="position:relative;z-index:1;max-width:1400px;margin:0 auto;">
   <div class="section-label">Application</div>
@@ -624,7 +648,8 @@ footer {
 </section>
 
 <!-- REVIEWS -->
-<section style="padding:5rem;background:linear-gradient(160deg,#2e1065 0%,#4c1d95 30%,#5b21b6 60%,#3730a3 100%);position:relative;overflow:hidden;">
+<section style="padding:5rem;background:linear-gradient(to bottom, #7c3aed 0%, #6d28d9 40%, #5b21b6 70%, #4c1d95 100%);position:relative;overflow:hidden;">
+  <!-- Blobs décoratifs -->
 
   <!-- Blobs décoratifs -->
   <div style="position:absolute;top:-80px;left:-80px;width:500px;height:500px;background:radial-gradient(ellipse,rgba(167,139,250,0.3) 0%,transparent 65%);pointer-events:none;"></div>
@@ -701,6 +726,103 @@ footer {
 </footer>
 
 <script>
+// ── TOAST NOTIFICATIONS ──
+function toast(msg, type='info', duration=3500){
+  const icons={success:'✓', error:'✕', info:'ℹ'};
+  const c=document.getElementById('toast-container');
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;
+  t.innerHTML=`<span style="font-size:16px;">${icons[type]}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(()=>{
+    t.style.animation='toastOut 0.3s ease forwards';
+    setTimeout(()=>t.remove(), 300);
+  }, duration);
+}
+
+function showNamePrompt(title, placeholder){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:2000;background:rgba(13,17,23,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1rem;';
+    overlay.innerHTML=`
+      <div style="background:white;border-radius:12px;padding:1.75rem;max-width:380px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,0.15);">
+        <div style="font-size:15px;font-weight:700;margin-bottom:1rem;color:var(--text);">${title}</div>
+        <input id="promptInput" type="text" placeholder="${placeholder}" maxlength="60"
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:14px;color:var(--text);outline:none;font-family:'Inter',sans-serif;margin-bottom:1rem;"
+          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'" />
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="this.closest('.prompt-overlay').dataset.result='';this.closest('.prompt-overlay').remove();"
+            style="padding:9px 18px;background:transparent;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;font-family:'Inter',sans-serif;">Annuler</button>
+          <button id="promptConfirm"
+            style="padding:9px 18px;background:var(--blue);border:none;border-radius:8px;font-size:13px;font-weight:600;color:white;cursor:pointer;font-family:'Inter',sans-serif;">Confirmer</button>
+        </div>
+      </div>`;
+    overlay.classList.add('prompt-overlay');
+    document.body.appendChild(overlay);
+    const input=overlay.querySelector('#promptInput');
+    const confirm=overlay.querySelector('#promptConfirm');
+    input.focus();
+    const done=(val)=>{ overlay.remove(); resolve(val||null); };
+    confirm.onclick=()=>done(input.value.trim());
+    input.onkeydown=(e)=>{ if(e.key==='Enter') done(input.value.trim()); if(e.key==='Escape') done(null); };
+    overlay.onclick=(e)=>{ if(e.target===overlay) done(null); };
+  });
+}
+
+// ── STRIPE ──
+const STRIPE_KEY='pk_test_51TaE1y1qoHpwN7K7GIJcOIz9v6vw9j9Gxj1MMaMHVuvd63jhcYoWb3Asnc2InSuq4IRYnah15PRErPYfGxpMKLq900bVnl1db4';
+const STRIPE_PRICES={
+  starter:'price_1Tajni1qoHpwN7K7lDSdEOrj',
+  ultra:'price_1TajoO1qoHpwN7K71Bd1sSd9'
+};
+const stripeClient=Stripe(STRIPE_KEY);
+
+async function subscribeToPlan(plan){
+  if(!currentUser){
+    toast('Veuillez vous connecter avant de vous abonner.','info');
+    showAuthModal();
+    return;
+  }
+
+  // Bloquer le downgrade si le mois n'est pas terminé
+  const planOrder={free:0,starter:1,ultra:2};
+  if(planOrder[plan] < planOrder[currentPlan]){
+    const {data:profile}=await sb.from('profiles').select('plan_started_at').eq('id',currentUser.id).single();
+    if(profile?.plan_started_at){
+      const started=new Date(profile.plan_started_at);
+      const now=new Date();
+      const sameMonth=started.getMonth()===now.getMonth()&&started.getFullYear()===now.getFullYear();
+      if(sameMonth){
+        const finMois=new Date(started.getFullYear(),started.getMonth()+1,1);
+        const jours=Math.ceil((finMois-now)/(1000*60*60*24));
+        toast(`⛔ Downgrade impossible — encore ${jours} jour(s) avant la fin de votre période.`,'error');
+        return;
+      }
+    }
+  }
+
+  const priceId=STRIPE_PRICES[plan];
+  if(!priceId) return;
+
+  toast('Redirection vers le paiement...','info');
+
+  try {
+    const res=await fetch(`${SUPA_URL}/functions/v1/create-checkout`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':`Bearer ${SUPA_KEY}`
+      },
+      body:JSON.stringify({priceId, userEmail:currentUser.email, plan})
+    });
+    const data=await res.json();
+    if(data.error) throw new Error(data.error);
+    window.location.href=data.url;
+  } catch(e){
+    toast('Erreur : '+e.message,'error');
+  }
+}
+
 // ── SUPABASE ──
 const SUPA_URL='https://ikhollgugyynrposupud.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraG9sbGd1Z3l5bnJwb3N1cHVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1ODc0OTMsImV4cCI6MjA5NTE2MzQ5M30.hR1yWCVtGkdnKEGFBLC-lv2myEJdlkjt9L6bZOA5Sts';
@@ -710,7 +832,7 @@ const sb=supabase.createClient(SUPA_URL,SUPA_KEY,{
     storageKey: 'graphpro-auth',
     storage: window.localStorage,
     autoRefreshToken: true,
-    detectSessionInUrl: false
+    detectSessionInUrl: true
   }
 });
 
@@ -856,7 +978,7 @@ function buildInputRows(){
     r.className='input-row';
     r.style.cssText='display:flex;flex-direction:column;gap:4px;margin-bottom:8px;';
     // Product pill (only if products exist and plan allows)
-    const prodAllowed = currentPlan==='starter'||currentPlan==='ultra';
+    const prodAllowed = currentPlan==='starter'||currentPlan==='ultra'||currentPlan==='free';
     const prodHtml = prodAllowed && products.length>0 ? `
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;" class="prod-pills" data-idx="${idx}">
         ${products.map((p,pi)=>`
@@ -988,7 +1110,7 @@ function onSalesValChanged(input, periodIdx){
 }
 
 function setMode(mode,el){
-  if(currentPlan==='free'&&mode!=='day'){alert('Ce mode nécessite un abonnement Starter ou Ultra.');return;}
+  if(currentPlan==='free'&&mode!=='day'){toast('Ce mode nécessite un abonnement Starter ou Ultra.','info');return;}
   currentMode=mode;
   document.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -1112,7 +1234,7 @@ function setPlan(plan){
   const pb=document.getElementById('prodBadge');
   if(plan==='ultra'){pb.textContent='Ultra — Illimité';pb.className='badge blue';}
   else if(plan==='starter'){pb.textContent='Starter — 5 max';pb.className='badge';}
-  else{pb.textContent='Non disponible';pb.className='badge';}
+  else{pb.textContent='Gratuit — 1 max';pb.className='badge';}
   if(plan==='ultra'){
     document.getElementById('insightsContent').innerHTML=`<div class="insights-grid"><div class="insight-card"><div class="insight-ico">💡</div><div class="insight-txt">Générez un graphique pour voir vos insights automatiques.</div></div></div>`;
     renderCompare();
@@ -1128,8 +1250,8 @@ let savedPeriods=[];
 
 async function saveCurrentPeriod(){
   const vals=Array.from(document.querySelectorAll('.sales-val')).map(i=>parseFloat(i.value)||0);
-  if(vals.every(v=>v===0)){alert('Entrez des données avant de sauvegarder.');return;}
-  const name=prompt('Nom de cette période (ex: Lundi 20 mai, Semaine 1 juin…)');
+  if(vals.every(v=>v===0)){toast('Entrez des données avant de sauvegarder.','error');return;}
+  const name = await showNamePrompt('Nommez cette période', 'Ex: Lundi 20 mai, Semaine 1 juin…');
   if(!name)return;
   const prodData={};
   document.querySelectorAll('.prod-pill.active-prod').forEach(pill=>{
@@ -1151,7 +1273,7 @@ async function saveCurrentPeriod(){
   savedPeriods.push(period);
   if(currentUser) await savePeriodToDB(period);
   renderCompare();
-  alert(`✓ Période "${name}" sauvegardée !`);
+  toast(`✓ Période "${name}" sauvegardée !`, 'success');
 }
 
 function renderCompare(){
@@ -1181,12 +1303,12 @@ function renderCompare(){
 function generateCompare(){
   const idA=document.getElementById('selA')?.value;
   const idB=document.getElementById('selB')?.value;
-  if(!idA||!idB){alert('Choisissez deux périodes.');return;}
-  if(idA===idB){alert('Choisissez deux périodes différentes.');return;}
+  if(!idA||!idB){toast('Choisissez deux périodes.','error');return;}
+  if(idA===idB){toast('Choisissez deux périodes différentes.','error');return;}
   const pA=savedPeriods.find(p=>p.id==idA);
   const pB=savedPeriods.find(p=>p.id==idB);
-  if(!pA||!pB){alert('Périodes introuvables.');return;}
-  if(pA.mode!==pB.mode){alert('Vous ne pouvez comparer que des périodes du même mode.');return;}
+  if(!pA||!pB){toast('Périodes introuvables.','error');return;}
+  if(pA.mode!==pB.mode){toast('Vous ne pouvez comparer que des périodes du même mode.','error');return;}
 
   const cr=document.getElementById('compareResult');
   cr.innerHTML=`
@@ -1274,9 +1396,9 @@ async function addProduct(){
   const name=nameInput.value.trim();
   const price=parseFloat(priceInput.value);
   if(!name){nameInput.focus();return;}
-  if(isNaN(price)||price<=0){alert('Entrez un prix unitaire valide.');priceInput.focus();return;}
-  const limit=currentPlan==='ultra'?Infinity:currentPlan==='starter'?5:0;
-  if(products.length>=limit){alert(currentPlan==='free'?'Les produits nécessitent un abonnement Starter.':'Limite de 5 produits atteinte. Passez à Ultra pour illimité.');return;}
+  if(isNaN(price)||price<=0){toast('Entrez un prix unitaire valide.','error');priceInput.focus();return;}
+  const limit=currentPlan==='ultra'?Infinity:currentPlan==='starter'?5:1;
+  if(products.length>=limit){toast(currentPlan==='free'?'Limite d\'1 produit avec l\'essai gratuit. Passez au plan Starter pour en avoir 5.':'Limite de 5 produits atteinte. Passez à Ultra pour illimité.','info');return;}
   const prod={name,price};
   if(currentUser){ const saved=await saveProductToDB(name,price); if(saved) prod.id=saved.id; }
   products.push(prod);
@@ -1297,7 +1419,7 @@ function renderProducts(){
     t.innerHTML=`<span>${p.name}</span><span style="color:var(--text3);font-size:11px;margin-left:2px;">€${p.price.toFixed(2)}</span><span class="rm" onclick="removeProduct(${i})">✕</span>`;
     c.appendChild(t);
   });
-  const limit=currentPlan==='ultra'?'∞':currentPlan==='starter'?5:0;
+  const limit=currentPlan==='ultra'?'∞':currentPlan==='starter'?5:1;
   document.getElementById('limitNote').textContent=`${products.length} / ${limit} produits`;
   buildInputRows();
 }
@@ -1442,7 +1564,48 @@ function showMsg(el,txt,color){
 }
 
 buildInputRows(); renderProducts(); initStarPicker(); loadReviews();
-window.addEventListener('load', ()=>{ initAuth(); });
+window.addEventListener('load', async()=>{
+  await initAuth();
+  // Handle Stripe success redirect
+  const params=new URLSearchParams(window.location.search);
+  if(params.get('success')==='true'&&params.get('plan')){
+    const plan=params.get('plan');
+    setPlan(plan);
+    // Attendre que la session soit disponible (max 3 secondes)
+    let tries=0;
+    while(!currentUser && tries<15){
+      await new Promise(r=>setTimeout(r,200));
+      const {data:{session}}=await sb.auth.getSession();
+      if(session?.user){ currentUser=session.user; }
+      tries++;
+    }
+    // Save plan + date d'achat to Supabase
+    if(currentUser){
+      await sb.from('profiles').update({
+        plan,
+        plan_started_at: new Date().toISOString()
+      }).eq('id',currentUser.id);
+      toast(`✓ Abonnement ${plan === 'starter' ? 'Starter' : 'Ultra'} activé avec succès !`, 'success');
+    } else {
+      // Session perdue — on sauvegarde le plan dans localStorage pour après reconnexion
+      localStorage.setItem('pending_plan', plan);
+      toast(`✓ Paiement reçu ! Reconnectez-vous pour activer votre plan ${plan}.`, 'info');
+    }
+    // Clean URL
+    window.history.replaceState({},'',window.location.pathname);
+  }
+  // Appliquer un plan en attente si l'utilisateur vient de se reconnecter
+  const pendingPlan=localStorage.getItem('pending_plan');
+  if(pendingPlan && currentUser){
+    localStorage.removeItem('pending_plan');
+    setPlan(pendingPlan);
+    await sb.from('profiles').update({
+      plan: pendingPlan,
+      plan_started_at: new Date().toISOString()
+    }).eq('id',currentUser.id);
+    toast(`✓ Abonnement ${pendingPlan === 'starter' ? 'Starter' : 'Ultra'} activé !`, 'success');
+  }
+});
 </script>
 </body>
 </html>
